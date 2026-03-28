@@ -19,6 +19,8 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
         "news_flag": news_flag,
         "ready_now": "NO",
         "trend_side": "None",
+        "momentum_spike": "NO",
+        "trigger_now": "NO",
     }
 
     if df is None or len(df) < 60:
@@ -76,24 +78,66 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
             bull_score -= 15
             bear_score -= 15
 
-    # New: detect short-term bearish structure shift
+    # 🔴 Bearish structure shift
     if len(df) >= 5:
-        last_3_lower_highs = (
+        if (
             df["High"].iloc[-1] < df["High"].iloc[-2] < df["High"].iloc[-3]
-        )
-
-        last_3_lower_lows = (
-            df["Low"].iloc[-1] < df["Low"].iloc[-2] < df["Low"].iloc[-3]
-        )
-
-        if last_3_lower_highs and last_3_lower_lows:
+            and df["Low"].iloc[-1] < df["Low"].iloc[-2] < df["Low"].iloc[-3]
+        ):
             bull_score -= 30
             bear_score += 20
+
+    # ===============================
+    # 🚀 SNIPER MODE (NEW)
+    # ===============================
+    momentum_spike = "NO"
+    trigger_now = "NO"
+
+    if len(df) >= 6:
+        recent_return = (df["Close"].iloc[-1] / df["Close"].iloc[-3] - 1) * 100
+        volume_spike = row["rel_volume"] >= 1.5 if pd.notna(row["rel_volume"]) else False
+
+        # 🔥 Momentum spike
+        if abs(recent_return) > 0.4 and volume_spike:
+            momentum_spike = "YES"
+
+            if recent_return > 0:
+                bull_score += 40
+                bear_score -= 20
+            else:
+                bear_score += 40
+                bull_score -= 20
+
+        # 🔥 Acceleration
+        move_now = df["Close"].iloc[-1] - df["Close"].iloc[-2]
+        move_prev = df["Close"].iloc[-2] - df["Close"].iloc[-3]
+
+        if move_now > move_prev > 0:
+            bull_score += 15
+        elif move_now < move_prev < 0:
+            bear_score += 15
+
+        # 🔥 Breakout
+        recent_high = df["High"].iloc[-10:-1].max()
+        recent_low = df["Low"].iloc[-10:-1].min()
+
+        if row["Close"] > recent_high:
+            bull_score += 30
+        elif row["Close"] < recent_low:
+            bear_score += 30
+
+        # 🔥 Trigger
+        if momentum_spike == "YES":
+            if recent_return > 0 and above_vwap:
+                trigger_now = "CALL"
+            elif recent_return < 0 and below_vwap:
+                trigger_now = "PUT"
 
     if news_flag == "YES":
         bull_score += 5
         bear_score += 5
 
+    # 🔥 Bias AFTER sniper logic
     if bull_score >= 60 and bull_score > bear_score:
         bias = "Best Call Candidate"
         trend_side = "Bullish"
@@ -107,26 +151,17 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
     ready_now = "NO"
 
     if bias == "Best Call Candidate":
-        if (
-            above_vwap
-            and bull_aligned
-            and pd.notna(rv) and rv >= 1.2
-            and pd.notna(te) and te >= 0.45
-            and pd.notna(pct_change) and pct_change > 0
-        ):
+        if above_vwap and bull_aligned and pd.notna(rv) and rv >= 1.2:
             ready_now = "YES"
 
     elif bias == "Best Put Candidate":
-        if (
-            below_vwap
-            and bear_aligned
-            and pd.notna(rv) and rv >= 1.2
-            and pd.notna(te) and te >= 0.45
-            and pd.notna(pct_change) and pct_change < 0
-        ):
+        if below_vwap and bear_aligned and pd.notna(rv) and rv >= 1.2:
             ready_now = "YES"
 
     return {
+        "symbol": "",
+        "trigger_now": trigger_now,
+        "momentum_spike": momentum_spike,
         "bull_score": round(float(bull_score), 2),
         "bear_score": round(float(bear_score), 2),
         "signal_bias": bias,
@@ -163,9 +198,10 @@ def run_stock_scanner(symbols=None):
 
     ordered_cols = [
         "symbol",
-        "signal_bias",
+        "trigger_now",
+        "momentum_spike",
         "ready_now",
-        "trend_side",
+        "signal_bias",
         "bull_score",
         "bear_score",
         "last_price",
@@ -178,21 +214,15 @@ def run_stock_scanner(symbols=None):
 
     result_df = result_df[ordered_cols]
 
-    call_df = result_df[result_df["signal_bias"] == "Best Call Candidate"].copy()
-    call_df = call_df.sort_values(by=["ready_now", "bull_score"], ascending=[False, False])
+    # 🔥 SNIPER PRIORITY SORT
+    ranking_df = result_df.sort_values(
+        by=["trigger_now", "momentum_spike", "rel_volume"],
+        ascending=[False, False, False],
+    )
 
-    put_df = result_df[result_df["signal_bias"] == "Best Put Candidate"].copy()
-    put_df = put_df.sort_values(by=["ready_now", "bear_score"], ascending=[False, False])
-
-    avoid_df = result_df[result_df["signal_bias"] == "Choppy / Avoid"].copy()
-    avoid_df = avoid_df.sort_values(by=["bull_score", "bear_score"], ascending=False)
-
-    ranking_df = result_df.copy()
-    ranking_df["primary_score"] = ranking_df[["bull_score", "bear_score"]].max(axis=1)
-    ranking_df = ranking_df.sort_values(
-        by=["ready_now", "primary_score", "trend_efficiency", "rel_volume"],
-        ascending=[False, False, False, False],
-    ).drop(columns=["primary_score"])
+    call_df = result_df[result_df["signal_bias"] == "Best Call Candidate"]
+    put_df = result_df[result_df["signal_bias"] == "Best Put Candidate"]
+    avoid_df = result_df[result_df["signal_bias"] == "Choppy / Avoid"]
 
     top_pick = ranking_df.iloc[0].to_dict() if not ranking_df.empty else None
 
