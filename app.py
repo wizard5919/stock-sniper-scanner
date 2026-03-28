@@ -6,185 +6,136 @@ from src.scanner import run_stock_scanner
 
 st.set_page_config(page_title=APP_TITLE, layout="wide")
 
-# ===============================
-# AUTO REFRESH
-# ===============================
+# 🔄 AUTO REFRESH
 st_autorefresh(interval=3000, key="sniper_refresh")
 
 # ===============================
-# SESSION STATE
+# STATE
 # ===============================
 if "run_scan" not in st.session_state:
     st.session_state.run_scan = False
 
 # ===============================
-# STYLING
+# STYLING (FLASH + MOBILE)
 # ===============================
-st.markdown(
-    """
-    <style>
-    .main {
-        background: linear-gradient(180deg, #050816 0%, #0a1020 100%);
-    }
+st.markdown("""
+<style>
 
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1400px;
-    }
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
 
-    .elite-title {
-        font-size: 3rem;
-        font-weight: 800;
-        color: #f8fafc;
-        margin-bottom: 0.3rem;
-        letter-spacing: -0.03em;
-    }
+.title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: white;
+}
 
-    .elite-subtitle {
-        font-size: 1.05rem;
-        color: #94a3b8;
-        margin-bottom: 1.4rem;
-    }
+.subtitle {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
 
-    .elite-card {
-        background: rgba(15, 23, 42, 0.92);
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        border-radius: 18px;
-        padding: 1rem 1.1rem;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-        margin-bottom: 1rem;
-    }
+.alert-call {
+    animation: pulseGreen 1s infinite;
+    background: #065f46;
+    color: #ecfdf5;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: bold;
+}
 
-    .elite-card h3 {
-        margin: 0 0 0.35rem 0;
-        color: #f8fafc;
-        font-size: 1.05rem;
-    }
+.alert-put {
+    animation: pulseRed 1s infinite;
+    background: #7f1d1d;
+    color: #fee2e2;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: bold;
+}
 
-    .elite-muted {
-        color: #94a3b8;
-        font-size: 0.95rem;
-    }
+@keyframes pulseGreen {
+    0% {opacity: 1;}
+    50% {opacity: 0.6;}
+    100% {opacity: 1;}
+}
 
-    .alert-call {
-        background: linear-gradient(135deg, rgba(6,95,70,0.95), rgba(16,185,129,0.22));
-        border: 1px solid rgba(16,185,129,0.50);
-        border-radius: 16px;
-        padding: 0.95rem 1rem;
-        color: #ecfdf5;
-        font-weight: 700;
-        margin-bottom: 1rem;
-    }
+@keyframes pulseRed {
+    0% {opacity: 1;}
+    50% {opacity: 0.6;}
+    100% {opacity: 1;}
+}
 
-    .alert-put {
-        background: linear-gradient(135deg, rgba(127,29,29,0.95), rgba(239,68,68,0.18));
-        border: 1px solid rgba(239,68,68,0.50);
-        border-radius: 16px;
-        padding: 0.95rem 1rem;
-        color: #fef2f2;
-        font-weight: 700;
-        margin-bottom: 1rem;
-    }
+.badge {
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
 
-    .alert-neutral {
-        background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(59,130,246,0.12));
-        border: 1px solid rgba(96,165,250,0.35);
-        border-radius: 16px;
-        padding: 0.95rem 1rem;
-        color: #e2e8f0;
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
+.call-badge {
+    background: #10b981;
+    color: white;
+}
 
-    .section-title {
-        font-size: 1.35rem;
-        font-weight: 750;
-        color: #f8fafc;
-        margin-top: 0.25rem;
-        margin-bottom: 0.8rem;
-    }
+.put-badge {
+    background: #ef4444;
+    color: white;
+}
 
-    div[data-testid="stMetric"] {
-        background: rgba(15, 23, 42, 0.92);
-        border: 1px solid rgba(148, 163, 184, 0.16);
-        padding: 0.8rem 0.9rem;
-        border-radius: 16px;
-    }
+.ready-badge {
+    background: #3b82f6;
+    color: white;
+}
 
-    div[data-testid="stDataFrame"] {
-        border-radius: 16px;
-        overflow: hidden;
-    }
-
-    .small-gap {
-        height: 0.35rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+</style>
+""", unsafe_allow_html=True)
 
 # ===============================
 # HEADER
 # ===============================
-st.markdown(f'<div class="elite-title">{APP_TITLE}</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="elite-subtitle">🚀 Sniper Elite UI: fast momentum, cleaner signals, better focus</div>',
-    unsafe_allow_html=True,
-)
+st.markdown(f'<div class="title">{APP_TITLE}</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">🚀 Sniper Elite Mode — ultra fast momentum detection</div>', unsafe_allow_html=True)
 
 # ===============================
 # SIDEBAR
 # ===============================
 with st.sidebar:
-    st.header("Scanner Settings")
+    st.header("Scanner")
 
     custom_symbols = st.text_area(
-        "Symbols to scan (comma-separated)",
+        "Symbols",
         value=",".join(DEFAULT_WATCHLIST),
-        height=120,
+        height=100,
     )
 
     symbols = [s.strip().upper() for s in custom_symbols.split(",") if s.strip()]
 
-    col_a, col_b = st.columns(2)
+    col1, col2 = st.columns(2)
 
-    with col_a:
-        if st.button("Run Scanner", use_container_width=True):
+    with col1:
+        if st.button("▶ Run", use_container_width=True):
             st.session_state.run_scan = True
 
-    with col_b:
-        if st.button("Stop Scanner", use_container_width=True):
+    with col2:
+        if st.button("⏹ Stop", use_container_width=True):
             st.session_state.run_scan = False
 
-    st.markdown("---")
-    st.caption("Best for 5m / 15m momentum hunting.")
-
 # ===============================
-# HELP / STATUS
+# WAIT STATE
 # ===============================
 if not st.session_state.run_scan:
-    st.markdown(
-        """
-        <div class="elite-card">
-            <h3>Waiting for Scanner</h3>
-            <div class="elite-muted">
-                Click <b>Run Scanner</b> in the sidebar to activate Sniper Elite mode.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.info("Press ▶ Run to start Sniper Mode")
     st.stop()
 
 # ===============================
 # RUN SCANNER
 # ===============================
-with st.spinner("Scanning live momentum..."):
-    all_df, call_df, put_df, avoid_df, ranking_df, top_pick = run_stock_scanner(symbols)
+all_df, call_df, put_df, avoid_df, ranking_df, top_pick = run_stock_scanner(symbols)
 
-# Safety for missing columns
+# fallback safety
 for col in ["momentum_spike", "trigger_now", "ready_now"]:
     if col not in ranking_df.columns:
         ranking_df[col] = "NO"
@@ -195,120 +146,67 @@ for col in ["momentum_spike", "trigger_now", "ready_now"]:
 sniper_df = ranking_df[
     (ranking_df["momentum_spike"] == "YES") |
     (ranking_df["trigger_now"] != "NO")
-].copy()
+]
+
+alerts = sniper_df[sniper_df["trigger_now"] != "NO"]
 
 # ===============================
-# ALERT BAR
+# 🚨 FLASH ALERT
 # ===============================
-alerts = sniper_df[sniper_df["trigger_now"] != "NO"].copy()
-
 if not alerts.empty:
-    top_alert = alerts.iloc[0]
-    if top_alert["trigger_now"] == "CALL":
+    top = alerts.iloc[0]
+
+    if top["trigger_now"] == "CALL":
         st.markdown(
-            f'<div class="alert-call">🚀 CALL ALERT: {top_alert["symbol"]} | '
-            f'Trigger: {top_alert["trigger_now"]} | Momentum Spike: {top_alert["momentum_spike"]}</div>',
-            unsafe_allow_html=True,
+            f'<div class="alert-call">🚀 CALL {top["symbol"]}</div>',
+            unsafe_allow_html=True
         )
-    elif top_alert["trigger_now"] == "PUT":
+    elif top["trigger_now"] == "PUT":
         st.markdown(
-            f'<div class="alert-put">🔻 PUT ALERT: {top_alert["symbol"]} | '
-            f'Trigger: {top_alert["trigger_now"]} | Momentum Spike: {top_alert["momentum_spike"]}</div>',
-            unsafe_allow_html=True,
+            f'<div class="alert-put">🔻 PUT {top["symbol"]}</div>',
+            unsafe_allow_html=True
         )
-else:
-    st.markdown(
-        '<div class="alert-neutral">No live CALL/PUT trigger right now. Stay patient.</div>',
-        unsafe_allow_html=True,
-    )
 
 # ===============================
-# DASHBOARD METRICS
+# TOP PICK
 # ===============================
-st.markdown('<div class="section-title">Dashboard</div>', unsafe_allow_html=True)
+if top_pick:
+    badge = ""
 
-m1, m2, m3, m4, m5 = st.columns(5)
+    if top_pick["trigger_now"] == "CALL":
+        badge = '<span class="badge call-badge">CALL</span>'
+    elif top_pick["trigger_now"] == "PUT":
+        badge = '<span class="badge put-badge">PUT</span>'
 
-with m1:
-    st.metric("Symbols", len(all_df))
+    ready = '<span class="badge ready-badge">READY</span>' if top_pick["ready_now"] == "YES" else ""
 
-with m2:
-    st.metric("Calls", len(call_df))
-
-with m3:
-    st.metric("Puts", len(put_df))
-
-with m4:
-    ready_count = int((all_df["ready_now"] == "YES").sum()) if not all_df.empty else 0
-    st.metric("Ready", ready_count)
-
-with m5:
-    spike_count = int((all_df["momentum_spike"] == "YES").sum()) if not all_df.empty else 0
-    st.metric("Spikes", spike_count)
-
-st.markdown('<div class="small-gap"></div>', unsafe_allow_html=True)
-
-# ===============================
-# TOP PICK CARD
-# ===============================
-st.markdown('<div class="section-title">Top Pick</div>', unsafe_allow_html=True)
-
-if top_pick is not None:
     st.markdown(
         f"""
-        <div class="elite-card">
-            <h3>{top_pick.get("symbol", "N/A")}</h3>
-            <div class="elite-muted">
-                Bias: <b>{top_pick.get("signal_bias", "N/A")}</b> |
-                Trigger: <b>{top_pick.get("trigger_now", "NO")}</b> |
-                Momentum: <b>{top_pick.get("momentum_spike", "NO")}</b> |
-                Ready: <b>{top_pick.get("ready_now", "NO")}</b>
-            </div>
-        </div>
+        **{top_pick['symbol']}** {badge} {ready}  
+        Momentum: {top_pick['momentum_spike']}
         """,
-        unsafe_allow_html=True,
-    )
-else:
-    st.markdown(
-        """
-        <div class="elite-card">
-            <h3>No top pick</h3>
-            <div class="elite-muted">No valid setup detected yet.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
 # ===============================
-# SNIPER MODE TABLE
+# METRICS (COMPACT)
 # ===============================
-st.markdown('<div class="section-title">🚨 Sniper Mode</div>', unsafe_allow_html=True)
-st.dataframe(sniper_df, use_container_width=True, height=260)
+c1, c2, c3 = st.columns(3)
 
-# ===============================
-# TABLES
-# ===============================
-left, right = st.columns(2)
-
-with left:
-    st.markdown('<div class="section-title">Best Calls</div>', unsafe_allow_html=True)
-    st.dataframe(call_df, use_container_width=True, height=260)
-
-    st.markdown('<div class="section-title">Choppy / Avoid</div>', unsafe_allow_html=True)
-    st.dataframe(avoid_df, use_container_width=True, height=260)
-
-with right:
-    st.markdown('<div class="section-title">Best Puts</div>', unsafe_allow_html=True)
-    st.dataframe(put_df, use_container_width=True, height=260)
-
-    st.markdown('<div class="section-title">Full Ranking</div>', unsafe_allow_html=True)
-    st.dataframe(ranking_df, use_container_width=True, height=260)
+c1.metric("Calls", len(call_df))
+c2.metric("Puts", len(put_df))
+c3.metric("Spikes", int((all_df["momentum_spike"] == "YES").sum()))
 
 # ===============================
-# GUIDE
+# TABLES (MOBILE FRIENDLY)
 # ===============================
-st.markdown('<div class="section-title">Execution Guide</div>', unsafe_allow_html=True)
-st.info(
-    "Trade only when Trigger = CALL or PUT. "
-    "Use Sniper Mode first, confirm on your chart, then enter and exit by your rule."
-)
+st.markdown("### 🚨 Sniper Hits")
+st.dataframe(sniper_df, use_container_width=True, height=250)
+
+st.markdown("### 📊 Ranking")
+st.dataframe(ranking_df, use_container_width=True, height=300)
+
+# ===============================
+# RULE
+# ===============================
+st.warning("ONLY trade when CALL or PUT appears. Ignore everything else.")
