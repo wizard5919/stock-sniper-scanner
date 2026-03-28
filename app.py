@@ -1,9 +1,11 @@
 import streamlit as st
 
+from streamlit_autorefresh import st_autorefresh
 from src.config import DEFAULT_WATCHLIST, APP_TITLE
 from src.scanner import run_stock_scanner
 
 st.set_page_config(page_title=APP_TITLE, layout="wide")
+st_autorefresh(interval=3000, key="sniper_refresh")  # refresh every 3 sec
 
 st.title(APP_TITLE)
 st.caption("Find the best trend + momentum stocks for your trading style.")
