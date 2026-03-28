@@ -8,22 +8,23 @@ from src.indicators import add_indicators
 
 def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> dict:
     default_response = {
+        "symbol": "",
+        "setup_grade": "Avoid",
+        "ai_score": 0.0,
+        "trigger_now": "NO",
+        "momentum_spike": "NO",
+        "news_catalyst": "NO",
+        "fake_breakout": "NO",
+        "ready_now": "NO",
+        "signal_bias": "No Data",
         "bull_score": 0.0,
         "bear_score": 0.0,
-        "signal_bias": "No Data",
         "last_price": np.nan,
         "pct_change": np.nan,
         "gap_pct": np.nan,
         "rel_volume": np.nan,
         "trend_efficiency": np.nan,
         "news_flag": news_flag,
-        "ready_now": "NO",
-        "trend_side": "None",
-        "momentum_spike": "NO",
-        "trigger_now": "NO",
-        "setup_grade": "Avoid",
-        "ai_score": 0.0,
-        "fake_breakout": "NO",
     }
 
     if df is None or len(df) < 60:
@@ -99,8 +100,7 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
     trigger_now = "NO"
     fake_breakout = "NO"
 
-    recent_return = 0.0
-    if len(df) >= 6:
+    if len(df) >= 10:
         recent_return = (df["Close"].iloc[-1] / df["Close"].iloc[-3] - 1.0) * 100.0
         volume_spike = bool(pd.notna(rv) and rv >= 1.5)
 
@@ -136,13 +136,12 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
         last_range = max(df["High"].iloc[-1] - df["Low"].iloc[-1], 1e-9)
         body_ratio = last_body / last_range
 
-        # Fake breakout filter
-        if broke_up and (row["Close"] < row["VWAP"] or body_ratio < 0.35):
+        if broke_up and (below_vwap or body_ratio < 0.35):
             fake_breakout = "YES"
             bull_score -= 35
             bear_score += 10
 
-        if broke_down and (row["Close"] > row["VWAP"] or body_ratio < 0.35):
+        if broke_down and (above_vwap or body_ratio < 0.35):
             fake_breakout = "YES"
             bear_score -= 35
             bull_score += 10
@@ -153,19 +152,21 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
             elif recent_return < 0 and below_vwap and fake_breakout == "NO":
                 trigger_now = "PUT"
 
-    if news_flag == "YES":
-        bull_score += 5
-        bear_score += 5
+    news_catalyst = "YES" if news_flag == "YES" else "NO"
+    if news_catalyst == "YES":
+        bull_score += 8
+        bear_score += 8
+
+        if momentum_spike == "YES":
+            bull_score += 5
+            bear_score += 5
 
     if bull_score >= 60 and bull_score > bear_score:
         bias = "Best Call Candidate"
-        trend_side = "Bullish"
     elif bear_score >= 60 and bear_score > bull_score:
         bias = "Best Put Candidate"
-        trend_side = "Bearish"
     else:
         bias = "Choppy / Avoid"
-        trend_side = "Choppy"
 
     ready_now = "NO"
     if bias == "Best Call Candidate":
@@ -188,13 +189,13 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
         ):
             ready_now = "YES"
 
-    # AI score for scalping quality
     ai_score = 0.0
     ai_score += min(max(bull_score, bear_score), 100) * 0.45
     ai_score += min(max(rv if pd.notna(rv) else 0.0, 0.0), 3.0) / 3.0 * 20
     ai_score += min(max(te if pd.notna(te) else 0.0, 0.0), 1.0) * 20
     ai_score += 10 if momentum_spike == "YES" else 0
     ai_score += 10 if trigger_now in ["CALL", "PUT"] else 0
+    ai_score += 10 if news_catalyst == "YES" else 0
     ai_score -= 20 if fake_breakout == "YES" else 0
     ai_score = max(0.0, min(ai_score, 100.0))
 
@@ -209,22 +210,22 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
 
     return {
         "symbol": "",
+        "setup_grade": setup_grade,
+        "ai_score": round(float(ai_score), 2),
         "trigger_now": trigger_now,
         "momentum_spike": momentum_spike,
+        "news_catalyst": news_catalyst,
+        "fake_breakout": fake_breakout,
+        "ready_now": ready_now,
+        "signal_bias": bias,
         "bull_score": round(float(bull_score), 2),
         "bear_score": round(float(bear_score), 2),
-        "signal_bias": bias,
         "last_price": round(last_price, 2),
         "pct_change": round(float(pct_change), 2) if pd.notna(pct_change) else np.nan,
         "gap_pct": round(float(gap_pct), 2) if pd.notna(gap_pct) else np.nan,
         "rel_volume": round(float(rv), 2) if pd.notna(rv) else np.nan,
         "trend_efficiency": round(float(te), 2) if pd.notna(te) else np.nan,
         "news_flag": news_flag,
-        "ready_now": ready_now,
-        "trend_side": trend_side,
-        "setup_grade": setup_grade,
-        "ai_score": round(float(ai_score), 2),
-        "fake_breakout": fake_breakout,
     }
 
 
@@ -254,6 +255,7 @@ def run_stock_scanner(symbols=None):
         "ai_score",
         "trigger_now",
         "momentum_spike",
+        "news_catalyst",
         "fake_breakout",
         "ready_now",
         "signal_bias",
@@ -266,20 +268,21 @@ def run_stock_scanner(symbols=None):
         "trend_efficiency",
         "news_flag",
     ]
-
     result_df = result_df[ordered_cols]
 
-    ranking_df = result_df.sort_values(
-        by=["setup_grade", "ai_score", "trigger_now", "momentum_spike", "rel_volume"],
-        ascending=[True, False, False, False, False],
-        key=lambda col: col.map({"A+": 0, "A": 1, "B": 2, "Avoid": 3}) if col.name == "setup_grade" else col
-    )
+    grade_order = {"A+": 0, "A": 1, "B": 2, "Avoid": 3}
+    ranking_df = result_df.copy()
+    ranking_df["grade_rank"] = ranking_df["setup_grade"].map(grade_order).fillna(9)
+    ranking_df = ranking_df.sort_values(
+        by=["grade_rank", "ai_score", "trigger_now", "momentum_spike", "news_catalyst", "rel_volume"],
+        ascending=[True, False, False, False, False, False],
+    ).drop(columns=["grade_rank"])
 
     call_df = result_df[result_df["signal_bias"] == "Best Call Candidate"].copy()
-    call_df = call_df.sort_values(by=["ai_score", "trigger_now"], ascending=[False, False])
+    call_df = call_df.sort_values(by=["ai_score", "news_catalyst"], ascending=[False, False])
 
     put_df = result_df[result_df["signal_bias"] == "Best Put Candidate"].copy()
-    put_df = put_df.sort_values(by=["ai_score", "trigger_now"], ascending=[False, False])
+    put_df = put_df.sort_values(by=["ai_score", "news_catalyst"], ascending=[False, False])
 
     avoid_df = result_df[result_df["signal_bias"] == "Choppy / Avoid"].copy()
     avoid_df = avoid_df.sort_values(by=["ai_score"], ascending=[False])
