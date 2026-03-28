@@ -76,6 +76,20 @@ def score_symbol(df: pd.DataFrame, prev_close: float | None, news_flag: str) -> 
             bull_score -= 15
             bear_score -= 15
 
+    # New: detect short-term bearish structure shift
+    if len(df) >= 5:
+        last_3_lower_highs = (
+            df["High"].iloc[-1] < df["High"].iloc[-2] < df["High"].iloc[-3]
+        )
+
+        last_3_lower_lows = (
+            df["Low"].iloc[-1] < df["Low"].iloc[-2] < df["Low"].iloc[-3]
+        )
+
+        if last_3_lower_highs and last_3_lower_lows:
+            bull_score -= 30
+            bear_score += 20
+
     if news_flag == "YES":
         bull_score += 5
         bear_score += 5
