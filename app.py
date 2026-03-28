@@ -1,4 +1,3 @@
-import pandas as pd
 import streamlit as st
 
 from src.config import DEFAULT_WATCHLIST, APP_TITLE
@@ -11,16 +10,18 @@ st.caption("Find the best trend + momentum stocks for your trading style.")
 
 with st.sidebar:
     st.header("Scanner Settings")
+
     custom_symbols = st.text_area(
         "Symbols to scan (comma-separated)",
         value=",".join(DEFAULT_WATCHLIST),
         height=120,
     )
+
     symbols = [s.strip().upper() for s in custom_symbols.split(",") if s.strip()]
     run_scan = st.button("Run Scanner", use_container_width=True)
 
 st.markdown(
-    '''
+    """
 ### What this app does
 This scanner ranks symbols using:
 - VWAP position
@@ -29,12 +30,58 @@ This scanner ranks symbols using:
 - Relative volume
 - Trend efficiency
 - Chop penalty
-'''
+- Premarket / session gap %
+- News flag
+- Ready-now status
+"""
 )
 
 if run_scan:
     with st.spinner("Scanning symbols..."):
-        all_df, call_df, put_df, avoid_df = run_stock_scanner(symbols)
+        all_df, call_df, put_df, avoid_df, ranking_df, top_pick = run_stock_scanner(symbols)
+
+    st.markdown("## Dashboard")
+
+    m1, m2, m3, m4 = st.columns(4)
+
+    with m1:
+        st.metric("Symbols Scanned", len(all_df))
+
+    with m2:
+        st.metric("Best Calls", len(call_df))
+
+    with m3:
+        st.metric("Best Puts", len(put_df))
+
+    with m4:
+        ready_count = int((all_df["ready_now"] == "YES").sum()) if not all_df.empty else 0
+        st.metric("Ready Now", ready_count)
+
+    st.markdown("## Top Pick of the Day")
+
+    if top_pick is not None:
+        c1, c2, c3, c4 = st.columns(4)
+
+        with c1:
+            st.metric("Symbol", top_pick["symbol"])
+
+        with c2:
+            st.metric("Bias", top_pick["signal_bias"])
+
+        with c3:
+            st.metric("Bull Score", f'{top_pick["bull_score"]:.2f}')
+
+        with c4:
+            st.metric("Bear Score", f'{top_pick["bear_score"]:.2f}')
+
+        st.success(
+            f"Top setup: {top_pick['symbol']} | "
+            f"Ready Now: {top_pick['ready_now']} | "
+            f"Gap %: {top_pick['gap_pct']} | "
+            f"News: {top_pick['news_flag']}"
+        )
+    else:
+        st.warning("No valid top pick found.")
 
     c1, c2, c3 = st.columns(3)
 
@@ -51,18 +98,13 @@ if run_scan:
         st.dataframe(avoid_df, use_container_width=True)
 
     st.markdown("### Full Ranking")
-    ranking_df = all_df.copy()
-    if not ranking_df.empty:
-        ranking_df["max_score"] = ranking_df[["bull_score", "bear_score"]].max(axis=1)
-        ranking_df = ranking_df.sort_values(by="max_score", ascending=False).drop(columns=["max_score"])
     st.dataframe(ranking_df, use_container_width=True)
 
-    if not all_df.empty:
-        st.markdown("### Top Setup")
-        top_row = ranking_df.iloc[0]
-        st.success(
-            f"{top_row['symbol']} | Bias: {top_row['signal_bias']} | "
-            f"Bull Score: {top_row['bull_score']} | Bear Score: {top_row['bear_score']}"
-        )
+    st.markdown("### How to use it")
+    st.info(
+        "Focus on symbols with high score, clean bias, and READY NOW = YES. "
+        "Then wait for your actual algo entry signal before taking the trade."
+    )
+
 else:
-    st.info("Enter your watchlist in the sidebar, then click **Run Scanner**.")
+    st.info("Enter your watchlist in the sidebar, then click Run Scanner.")
