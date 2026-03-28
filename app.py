@@ -25,12 +25,16 @@ with st.sidebar:
     )
 
     symbols = [s.strip().upper() for s in custom_symbols.split(",") if s.strip()]
-    run_scan = st.button("Run Scanner", use_container_width=True)
+    if "run_scan" not in st.session_state:
+    st.session_state.run_scan = False
+
+if st.button("Run Scanner", use_container_width=True):
+    st.session_state.run_scan = True
 
 # ===============================
 # RUN SCANNER
 # ===============================
-if run_scan:
+if st.session_state.run_scan:
     with st.spinner("Scanning symbols..."):
         all_df, call_df, put_df, avoid_df, ranking_df, top_pick = run_stock_scanner(symbols)
 
